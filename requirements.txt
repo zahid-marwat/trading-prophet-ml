@@ -12,7 +12,7 @@ prophet
 statsmodels
 backtrader
 vectorbt
-zipline
+
 matplotlib
 seaborn
 plotly
