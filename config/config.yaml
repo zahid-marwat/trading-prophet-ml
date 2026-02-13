@@ -1,0 +1,34 @@
+assets:
+  stocks: [AAPL, GOOGL, TSLA, MSFT]
+  crypto: [BTC/USDT, ETH/USDT, ADA/USDT, SOL/USDT]
+  indices: [^GSPC, ^IXIC]
+
+data:
+  timeframes: [1m, 5m, 15m, 1h, 4h, 1d]
+  cache_dir: data
+  max_lookback_days: 3650
+
+api_keys:
+  alpha_vantage: ${ALPHA_VANTAGE_API_KEY}
+  news_api: ${NEWS_API_KEY}
+  reddit: ${REDDIT_API_KEY}
+  twitter: ${TWITTER_API_KEY}
+
+models:
+  random_seed: 42
+  train_test_split: 0.8
+  save_dir: models
+
+risk:
+  max_position_pct: 0.05
+  max_drawdown_pct: 0.2
+  var_confidence: 0.95
+
+backtesting:
+  slippage_bps: 5
+  fee_bps: 10
+  initial_capital: 100000
+
+alerts:
+  min_signal_confidence: 0.6
+  risk_reward_min: 1.5

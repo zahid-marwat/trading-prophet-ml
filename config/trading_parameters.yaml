@@ -1,0 +1,19 @@
+trend_following:
+  fast_ma: 20
+  slow_ma: 50
+
+mean_reversion:
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+
+breakout:
+  lookback_period: 20
+  breakout_threshold: 0.02
+
+pattern_based:
+  min_pattern_score: 0.7
+
+ml_prediction:
+  forecast_horizon: 5
+  confidence_threshold: 0.6
