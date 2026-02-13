@@ -61,6 +61,7 @@ def predict(req: PredictRequest) -> dict:
         "prediction": pred["prediction"],
         "confidence": pred["confidence"],
         "method": pred["method"],
+        "findings": pred["findings"],
     }
 
 

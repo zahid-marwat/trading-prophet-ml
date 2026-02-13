@@ -17,24 +17,28 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
         logger.warning("pandas-ta not available; returning input data")
         return out
 
-    out = out.join(ta.sma(out["close"], length=20).rename("sma_20"))
-    out = out.join(ta.ema(out["close"], length=20).rename("ema_20"))
+    # Moving Averages
+    out["sma_20"] = ta.sma(out["close"], length=20)
+    out["ema_20"] = ta.ema(out["close"], length=20)
+
+    # MACD
     macd = ta.macd(out["close"])
     if macd is not None:
-        out = out.join(macd)
-    adx = ta.adx(out["high"], out["low"], out["close"])
-    if adx is not None:
-        out = out.join(adx)
-    out = out.join(ta.rsi(out["close"], length=14).rename("rsi_14"))
-    out = out.join(ta.stoch(out["high"], out["low"], out["close"])).rename(columns=lambda c: c)
-    out = out.join(ta.cci(out["high"], out["low"], out["close"])).rename(columns=lambda c: c)
-    out = out.join(ta.willr(out["high"], out["low"], out["close"])).rename(columns=lambda c: c)
-    bb = ta.bbands(out["close"])
+        out["macd"] = macd.iloc[:, 0]
+        out["macd_hist"] = macd.iloc[:, 1]
+        out["macd_signal"] = macd.iloc[:, 2]
+
+    # RSI
+    out["rsi_14"] = ta.rsi(out["close"], length=14)
+
+    # Bollinger Bands
+    bb = ta.bbands(out["close"], length=20)
     if bb is not None:
-        out = out.join(bb)
-    out = out.join(ta.atr(out["high"], out["low"], out["close"])).rename(columns=lambda c: c)
-    out = out.join(ta.kc(out["high"], out["low"], out["close"])).rename(columns=lambda c: c)
-    out = out.join(ta.obv(out["close"], out["volume"])).rename(columns=lambda c: c)
-    out = out.join(ta.mfi(out["high"], out["low"], out["close"], out["volume"])).rename(columns=lambda c: c)
-    out = out.join(ta.vwap(out["high"], out["low"], out["close"], out["volume"])).rename(columns=lambda c: c)
+        out["bb_lower"] = bb.iloc[:, 0]
+        out["bb_mid"] = bb.iloc[:, 1]
+        out["bb_upper"] = bb.iloc[:, 2]
+
+    # Other indicators (optional, can keep or remove if not used)
+    # Keeping minimal set for cleaner dataframe
+    
     return out

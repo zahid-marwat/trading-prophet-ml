@@ -33,5 +33,6 @@ def predict_asset(asset: str, timeframe: str = "1d", period: str = "1y", horizon
         "prediction": result.prediction,
         "confidence": result.confidence,
         "method": result.method,
+        "findings": result.findings,
         "disclaimer": "Not financial advice.",
     }

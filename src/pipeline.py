@@ -72,6 +72,7 @@ def run_quick_analysis(asset: str, timeframe: str = "1d", period: str = "1y") ->
         "asset": asset,
         "timeframe": timeframe,
         "rows": len(df),
+        "history": df.tail(100).reset_index().to_dict(orient="records"),
         "metrics": metrics,
         "disclaimer": "Not financial advice.",
     }
