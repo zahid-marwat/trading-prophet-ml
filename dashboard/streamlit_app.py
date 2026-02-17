@@ -36,9 +36,16 @@ def cached_prediction(asset: str, timeframe: str) -> dict:
 
 
 def main():
-    # Sidebar Configuration
-    st.sidebar.markdown("### 🎨 Theme Settings")
-    theme_mode = st.sidebar.selectbox("Color Theme", ["Dark Mode 🌙", "Light Mode ☀️"], index=0)
+    # Header Layout with Theme Toggle on the Right
+    header_col, theme_col = st.columns([0.85, 0.15])
+    
+    with header_col:
+        st.markdown('<div class="main-header">Trading Prophet ML 🚀</div>', unsafe_allow_html=True)
+        
+    with theme_col:
+        st.write("") # Spacer
+        theme_mode = st.selectbox("Theme", ["Dark 🌙", "Light ☀️"], index=0, label_visibility="collapsed")
+    
     is_dark = "Dark" in theme_mode
 
     # Define Colors based on theme
@@ -47,12 +54,14 @@ def main():
         text_color = "#FAFAFA"
         card_bg = "#1E2130"
         metric_label = "#B0BEC5"
+        metric_value_color = "#00E5FF" # Cyan for Dark Mode
         plotly_template = "plotly_dark"
     else:
         bg_color = "#FFFFFF"
-        text_color = "#31333F"
-        card_bg = "#F0F2F6"
-        metric_label = "#555555"
+        text_color = "#000000"       # Pure Black for max contrast
+        card_bg = "#F0F2F6"          # Light Grey Card
+        metric_label = "#333333"     # Dark Grey Label
+        metric_value_color = "#0068C9" # Streamlit Blue for Light Mode (High Contrast)
         plotly_template = "plotly_white"
 
     # Inject Dynamic CSS
@@ -86,7 +95,7 @@ def main():
         .metric-value {{
             font-size: 2rem;
             font-weight: bold;
-            color: #00E5FF;
+            color: {metric_value_color};
         }}
         .metric-label {{
             font-size: 0.9rem;
@@ -97,9 +106,6 @@ def main():
         footer {{visibility: hidden;}}
     </style>
     """, unsafe_allow_html=True)
-
-    # Header
-    st.markdown('<div class="main-header">Trading Prophet ML 🚀</div>', unsafe_allow_html=True)
 
     st.sidebar.markdown("### ⚙️ Asset Configuration")
     
@@ -127,6 +133,26 @@ def main():
     st.sidebar.markdown("**Oscillators**")
     show_rsi = st.sidebar.checkbox("RSI 14", value=False)
     show_macd = st.sidebar.checkbox("MACD", value=False)
+
+    # Helper for custom metric cards
+    def custom_metric(label, value, delta=None, color_trend=True):
+        delta_html = ""
+        if delta:
+            # Parse delta to determine color
+            delta_val = float(delta.strip('%').replace('+', ''))
+            color = "#00FF00" if delta_val > 0 else "#FF0000"
+            arrow = "↑" if delta_val > 0 else "↓"
+            delta_html = f'<span style="color: {color}; font-size: 1rem; margin-left: 10px;">{arrow} {delta}</span>'
+        
+        return f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">
+                {value}
+                {delta_html}
+            </div>
+        </div>
+        """
 
     if st.sidebar.button("Run Analysis", type="primary", use_container_width=True):
         with st.spinner(f"Fetching data and analyzing {asset}..."):
@@ -159,27 +185,38 @@ def main():
                 c1, c2, c3, c4 = st.columns(4)
                 
                 with c1:
-                    st.metric("Current Price", f"${last_close:,.2f}", f"{change_pct:+.2f}%")
+                    st.markdown(custom_metric("Current Price", f"${last_close:,.2f}", f"{change_pct:+.2f}%"), unsafe_allow_html=True)
                 
                 with c2:
                     pred_price = prediction.get("prediction", 0)
                     pred_pct = (pred_price - last_close) / last_close * 100
-                    st.metric("Predicted Price", f"${pred_price:,.2f}", f"{pred_pct:+.2f}%")
+                    st.markdown(custom_metric("Predicted Price", f"${pred_price:,.2f}", f"{pred_pct:+.2f}%"), unsafe_allow_html=True)
                 
                 with c3:
                     trend = "Bullish 🐂" if pred_pct > 0 else "Bearish 🐻"
-                    st.metric("Signal", trend, delta_color="off")
+                    st.markdown(custom_metric("Signal", trend), unsafe_allow_html=True)
                     
                 with c4:
-                     st.metric("Confidence", f"{prediction.get('confidence', 0):.2f}")
+                     st.markdown(custom_metric("Confidence", f"{prediction.get('confidence', 0):.2f}"), unsafe_allow_html=True)
+
+                # Calculate Date Range
+                if 'timestamp' in df.columns:
+                    dates = pd.to_datetime(df['timestamp'])
+                else:
+                    dates = pd.to_datetime(df.index)
+                
+                start_date = dates.min().strftime('%Y-%m-%d %H:%M')
+                end_date = dates.max().strftime('%Y-%m-%d %H:%M')
+
+                st.markdown(f"**Data Range:** `{start_date}` to `{end_date}`")
 
                 # Second Row: Market Stats
                 st.markdown(f"**Period Stats ({timeframe})**")
                 s1, s2, s3, s4 = st.columns(4)
-                s1.metric("Highest (Last 24)", f"${high_24h:,.2f}")
-                s2.metric("Lowest (Last 24)", f"${low_24h:,.2f}")
-                s3.metric("Total Volume", f"{volume_24h:,.0f}")
-                s4.metric("RSI (14)", f"{df.iloc[-1].get('rsi_14', 0):.2f}")
+                s1.markdown(custom_metric("Highest (Last 24)", f"${high_24h:,.2f}"), unsafe_allow_html=True)
+                s2.markdown(custom_metric("Lowest (Last 24)", f"${low_24h:,.2f}"), unsafe_allow_html=True)
+                s3.markdown(custom_metric("Total Volume", f"{volume_24h:,.0f}"), unsafe_allow_html=True)
+                s4.markdown(custom_metric("RSI (14)", f"{df.iloc[-1].get('rsi_14', 0):.2f}"), unsafe_allow_html=True)
 
         st.markdown("---")
 
@@ -206,7 +243,7 @@ def main():
                 total = sum(row_heights)
                 row_heights = [h/total for h in row_heights]
 
-                subplot_titles = [f'{asset} Price']
+                subplot_titles = [f'{asset} Price ({start_date} - {end_date})']
                 if show_volume: subplot_titles.append('Volume')
                 if show_rsi: subplot_titles.append('RSI (14)')
                 if show_macd: subplot_titles.append('MACD')
@@ -262,7 +299,8 @@ def main():
 
                 fig.update_layout(
                     height=800 if rows > 2 else 600,
-                    xaxis_rangeslider_visible=False,
+                    xaxis_rangeslider_visible=True,
+                    xaxis_rangeslider_thickness=0.05,
                     template=plotly_template,
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
