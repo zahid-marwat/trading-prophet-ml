@@ -1,11 +1,14 @@
 
 import sys
 import os
+from pathlib import Path
 import pandas as pd
 from pprint import pprint
 
-# Ensure src is in python path
-sys.path.append(os.getcwd())
+# Ensure project root is in python path
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from src.service import analyze_asset, predict_asset
 
