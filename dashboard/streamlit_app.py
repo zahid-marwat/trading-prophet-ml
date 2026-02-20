@@ -20,33 +20,43 @@ st.set_page_config(
 
 
 @st.cache_data(ttl=300)
-def cached_analysis(asset: str, timeframe: str) -> dict:
+def cached_analysis(asset: str, timeframe: str, period: str) -> dict:
     try:
-        return analyze_asset(asset, timeframe)
+        return analyze_asset(asset, timeframe, period)
     except Exception as e:
         return {"error": str(e)}
 
 
 @st.cache_data(ttl=300)
-def cached_prediction(asset: str, timeframe: str) -> dict:
+def cached_prediction(asset: str, timeframe: str, period: str) -> dict:
     try:
-        return predict_asset(asset, timeframe)
+        return predict_asset(asset, timeframe, period)
     except Exception as e:
         return {"error": str(e)}
 
 
 def main():
+    if "theme" not in st.session_state:
+        st.session_state.theme = "Dark"
+
     # Header Layout with Theme Toggle on the Right
-    header_col, theme_col = st.columns([0.85, 0.15])
+    header_col, theme_col = st.columns([0.9, 0.1])
     
     with header_col:
         st.markdown('<div class="main-header">Trading Prophet ML 🚀</div>', unsafe_allow_html=True)
         
     with theme_col:
         st.write("") # Spacer
-        theme_mode = st.selectbox("Theme", ["Dark 🌙", "Light ☀️"], index=0, label_visibility="collapsed")
+        # Button to toggle theme
+        # If Dark, show Sun to switch to Light
+        # If Light, show Moon to switch to Dark
+        btn_label = "☀️" if st.session_state.theme == "Dark" else "🌙"
+        
+        if st.button(btn_label, key="theme_toggle"):
+            st.session_state.theme = "Light" if st.session_state.theme == "Dark" else "Dark"
+            st.rerun()
     
-    is_dark = "Dark" in theme_mode
+    is_dark = st.session_state.theme == "Dark"
 
     # Define Colors based on theme
     if is_dark:
@@ -120,7 +130,11 @@ def main():
     else:  # Custom
         asset = st.sidebar.text_input("Asset Symbol (yfinance/ccxt)", "NVDA")
 
-    timeframe = st.sidebar.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "4h", "1d", "1wk"], index=5)
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        timeframe = st.selectbox("Interval", ["1m", "5m", "15m", "1h", "4h", "1d", "1wk"], index=5)
+    with col2:
+        period = st.selectbox("Data Period", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=5)
     
     st.sidebar.markdown("### 🛠️ Chart Settings")
     show_volume = st.sidebar.checkbox("Show Volume", value=True)
@@ -156,8 +170,8 @@ def main():
 
     if st.sidebar.button("Run Analysis", type="primary", use_container_width=True):
         with st.spinner(f"Fetching data and analyzing {asset}..."):
-            analysis = cached_analysis(asset, timeframe)
-            prediction = cached_prediction(asset, timeframe)
+            analysis = cached_analysis(asset, timeframe, period)
+            prediction = cached_prediction(asset, timeframe, period)
 
         if "error" in analysis:
             st.error(f"Analysis failed: {analysis['error']}")
@@ -225,6 +239,9 @@ def main():
 
         with tab1:
             if "history" in analysis and not df.empty:
+                # Prepare X-axis data to ensure consistency across all traces
+                x_data = df['timestamp'] if 'timestamp' in df.columns else df.index
+
                 # Dynamic Subplots
                 rows = 1
                 row_heights = [0.7]
@@ -258,19 +275,19 @@ def main():
 
                 # 1. Candlestick (Main Chart)
                 fig.add_trace(go.Candlestick(
-                    x=df['timestamp'] if 'timestamp' in df.columns else df.index,
+                    x=x_data,
                     open=df['open'], high=df['high'], low=df['low'], close=df['close'],
                     name='OHLC'
                 ), row=1, col=1)
 
                 # Overlays
                 if show_sma and 'sma_20' in df.columns:
-                    fig.add_trace(go.Scatter(x=df.index, y=df['sma_20'], line=dict(color='orange', width=1), name='SMA 20'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['sma_20'], line=dict(color='orange', width=1), name='SMA 20'), row=1, col=1)
                 if show_ema and 'ema_20' in df.columns:
-                    fig.add_trace(go.Scatter(x=df.index, y=df['ema_20'], line=dict(color='blue', width=1), name='EMA 20'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['ema_20'], line=dict(color='blue', width=1), name='EMA 20'), row=1, col=1)
                 if show_bb and 'bb_upper' in df.columns:
-                    fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], line=dict(color='gray', width=1, dash='dot'), name='BB Upper'), row=1, col=1)
-                    fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], line=dict(color='gray', width=1, dash='dot'), name='BB Lower', fill='tonexty'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['bb_upper'], line=dict(color='gray', width=1, dash='dot'), name='BB Upper'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['bb_lower'], line=dict(color='gray', width=1, dash='dot'), name='BB Lower', fill='tonexty'), row=1, col=1)
 
                 current_row = 2
                 
@@ -278,23 +295,23 @@ def main():
                 if show_volume:
                     colors = ['red' if row['open'] - row['close'] >= 0 else 'green' for index, row in df.iterrows()]
                     fig.add_trace(go.Bar(
-                        x=df['timestamp'] if 'timestamp' in df.columns else df.index,
+                        x=x_data,
                         y=df['volume'], marker_color=colors, showlegend=False, name='Volume'
                     ), row=current_row, col=1)
                     current_row += 1
 
                 # 3. RSI
                 if show_rsi and 'rsi_14' in df.columns:
-                    fig.add_trace(go.Scatter(x=df.index, y=df['rsi_14'], line=dict(color='purple', width=1), name='RSI'), row=current_row, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['rsi_14'], line=dict(color='purple', width=1), name='RSI'), row=current_row, col=1)
                     fig.add_hline(y=70, line_dash="dash", line_color="red", row=current_row, col=1)
                     fig.add_hline(y=30, line_dash="dash", line_color="green", row=current_row, col=1)
                     current_row += 1
 
                 # 4. MACD
                 if show_macd and 'macd' in df.columns:
-                    fig.add_trace(go.Scatter(x=df.index, y=df['macd'], line=dict(color='blue', width=1), name='MACD'), row=current_row, col=1)
-                    fig.add_trace(go.Scatter(x=df.index, y=df['macd_signal'], line=dict(color='orange', width=1), name='Signal'), row=current_row, col=1)
-                    fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], name='Hist'), row=current_row, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['macd'], line=dict(color='blue', width=1), name='MACD'), row=current_row, col=1)
+                    fig.add_trace(go.Scatter(x=x_data, y=df['macd_signal'], line=dict(color='orange', width=1), name='Signal'), row=current_row, col=1)
+                    fig.add_trace(go.Bar(x=x_data, y=df['macd_hist'], name='Hist'), row=current_row, col=1)
                     current_row += 1
 
                 fig.update_layout(
@@ -313,23 +330,78 @@ def main():
                 st.warning("No historical data available for plotting.")
 
         with tab2:
-            st.markdown("### 🤖 Model Findings")
+            st.markdown("### 🤖 AI Prediction & Analysis")
+            
+            # 1. Main Findings / Narrative
             if "findings" in prediction:
-                st.success(prediction['findings'])
+                st.info(f"**Key Insight:** {prediction['findings']}")
             
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.markdown("#### Performance Metrics")
-                metrics = analysis.get("metrics", {})
-                st.json(metrics)
+            st.markdown("---")
+
+            # 2. Strategy Performance (Backtest)
+            st.markdown("#### 📊 Strategy Performance (Backtest)")
+            st.caption("How this strategy would have performed on historical data.")
             
-            with col_b:
-                st.markdown("#### Prediction Parameters")
-                st.json({
-                    "Method": prediction.get("method"),
-                    "Horizon": "5 Steps",
-                    "Window": "30 Periods"
-                })
+            metrics = analysis.get("metrics", {})
+            if metrics:
+                m1, m2, m3, m4 = st.columns(4)
+                
+                with m1:
+                    val = metrics.get('total_return', 0)
+                    st.metric("Total Return", f"{val*100:.2f}%", help="The total percentage profit or loss generated by the strategy over the selected period.")
+                with m2:
+                    val = metrics.get('annualized_return', 0)
+                    st.metric("Annualized Return", f"{val*100:.2f}%", help="The theoretical yearly return if this performance were sustained for a full year.")
+                with m3:
+                    sharpe = metrics.get('sharpe_ratio', 0)
+                    st.metric("Sharpe Ratio", f"{sharpe:.2f}", help="A measure of risk-adjusted return. > 1.0 is generally considered 'good'. Higher is better.")
+                with m4:
+                    dd = metrics.get('max_drawdown', 0)
+                    st.metric("Max Drawdown", f"{dd*100:.2f}%", help="The largest single drop from a peak to a trough. Represents the worst-case loss during the period.")
+            else:
+                st.write("No backtest metrics available.")
+
+            st.markdown("---")
+
+            # 3. Model Details & Explanation
+            c1, c2 = st.columns([0.5, 0.5])
+            
+            with c1:
+                st.markdown("#### 🧠 Prediction Confidence")
+                conf = prediction.get('confidence', 0)
+                st.markdown(f"**Level:** `{conf:.2f}`")
+                
+                if conf > 0.7:
+                    st.success("✅ **High Confidence**: The model sees strong, clear patterns. The prediction is more likely to be accurate.")
+                elif conf > 0.4:
+                    st.warning("⚠️ **Moderate Confidence**: Some patterns are present, but the market is slightly noisy.")
+                else:
+                    st.error("🛑 **Low Confidence**: The market is very unpredictable right now. Treat this signal with extra caution.")
+
+            with c2:
+                st.markdown("#### ℹ️ What does this mean?")
+                st.markdown("""
+                - **Bullish 🐂**: The AI predicts prices will **rise**.
+                - **Bearish 🐻**: The AI predicts prices will **fall**.
+                - **Horizon**: The prediction is for the *next few periods* (e.g., next 5 days if using Daily interval).
+                """)
+
+            with st.expander("📚 Guide: How to read these numbers (Click to Expand)"):
+                st.markdown("""
+                **1. Total Return**  
+                The overall profit or loss. If you started with $100 and this says 10%, you'd have $110.
+                
+                **2. Sharpe Ratio (Risk vs Reward)**  
+                Think of this as "Bang for your Buck".  
+                - **> 1.0**: Great! Useable strategy.  
+                - **< 1.0**: Be careful. The returns might not be worth the roller-coaster ride.
+                
+                **3. Max Drawdown (The "Pain" Index)**  
+                This is the worst loss you would have seen in your account at any single point.  
+                - Example: If you bought at the very top and the price crashed 20% before recovering, the Max Drawdown is 20%. **Lower is better.**
+                """)            
+                
+            st.caption(f"Disclaimer: {prediction.get('disclaimer', 'Not financial advice.')}")
 
         with tab3:
             st.dataframe(df if "history" in analysis else pd.DataFrame())
